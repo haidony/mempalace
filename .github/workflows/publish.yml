@@ -51,9 +51,11 @@ jobs:
             exit 1
           fi
           # Validate the shape before it is ever used as a git ref (ref-injection
-          # guard): a leading 'v' plus alphanumerics, dot, plus, hyphen only.
-          if [[ ! "$tag" =~ ^v[0-9][0-9A-Za-z.+-]*$ ]]; then
-            echo "::error::tag '$tag' is not a valid release tag (expected vX.Y.Z[-suffix])"
+          # guard): require vMAJOR.MINOR.PATCH with an optional -/+ suffix, so
+          # loose values like 'v3' or 'v3foo' are rejected.
+          re='^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$'
+          if [[ ! "$tag" =~ $re ]]; then
+            echo "::error::tag '$tag' is not a valid release tag (expected vMAJOR.MINOR.PATCH[-suffix])"
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -61,9 +63,10 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          # Safe: steps.tag.outputs.tag is format-validated above. On a release
-          # event this equals the release tag; on workflow_dispatch it's the input.
-          ref: ${{ steps.tag.outputs.tag }}
+          # Fully-qualified refs/tags/ so an unqualified name can't resolve to a
+          # same-named *branch* instead of the tag (checkout prefers branches).
+          # steps.tag.outputs.tag is format-validated above (ref-injection guard).
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
           fetch-depth: 0 # full history for the ancestry check
 
       - name: Verify the tag is on main
